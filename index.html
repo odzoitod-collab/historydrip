@@ -1,175 +1,368 @@
 <!DOCTYPE html>
-<!--
-  История чеков пользователя. Открывается как Mini App из бота.
-  SUPABASE_URL и SUPABASE_SERVICE_KEY — в открытом виде для запроса чеков по sender_telegram_id.
--->
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>История чеков</title>
+  <title>История сделок</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg: #18222d;
-      --block: #242f3d;
-      --text: #e4e4e5;
-      --hint: #8b959e;
-      --divider: #2b3742;
-      --green: #3cb878;
-      --red: #e53935;
-      --yellow: #f5a623;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      /* Palette */
+      --bg-color: #000000;
+      --card-bg: #1c1c1e;
+      --card-active: #2c2c2e;
+      --text-primary: #ffffff;
+      --text-secondary: #8e8e93;
+      --accent: #007aff;
+      --divider: #2c2c2e;
+      
+      /* Status Colors */
+      --green: #30d158;
+      --green-bg: rgba(48, 209, 88, 0.15);
+      --yellow: #ffd60a;
+      --yellow-bg: rgba(255, 214, 10, 0.15);
+      --red: #ff453a;
+      --red-bg: rgba(255, 69, 58, 0.15);
+      --gray-icon: #3a3a3c;
+
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, sans-serif;
+      --radius: 16px;
     }
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; min-height: 100vh; font-family: var(--font); font-size: 15px; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
-    body { padding: 16px; padding-top: max(56px, env(safe-area-inset-top)); padding-bottom: env(safe-area-inset-bottom); }
-    .page { max-width: 420px; margin: 0 auto; }
-    h1 { font-size: 18px; font-weight: 600; margin: 0 0 20px; color: var(--text); }
-    .section { margin-bottom: 24px; }
-    .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--hint); margin-bottom: 8px; }
-    .card { background: var(--block); border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; }
-    .card-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
-    .card-id { font-weight: 500; color: var(--text); }
-    .card-date { font-size: 13px; color: var(--hint); }
-    .card-amount { font-weight: 600; color: var(--green); }
-    .card-status { font-size: 12px; padding: 2px 8px; border-radius: 6px; }
-    .card-status.pending { background: rgba(245, 166, 35, 0.2); color: var(--yellow); }
-    .card-status.awaiting { background: rgba(245, 166, 35, 0.2); color: var(--yellow); }
-    .card-status.confirmed { background: rgba(60, 184, 120, 0.2); color: var(--green); }
-    .card-status.rejected { background: rgba(229, 57, 53, 0.2); color: var(--red); }
-    .empty { color: var(--hint); font-size: 14px; padding: 20px 0; text-align: center; }
-    .load { text-align: center; color: var(--hint); padding: 24px; }
-    .err { color: var(--red); font-size: 14px; padding: 16px; text-align: center; }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+    
+    html, body {
+      margin: 0; padding: 0;
+      min-height: 100vh;
+      background-color: var(--bg-color);
+      font-family: var(--font);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      padding-top: max(12px, env(safe-area-inset-top));
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header & Title */
+    .header {
+      padding: 0 16px 16px 16px;
+      background: var(--bg-color);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      letter-spacing: 0.3px;
+    }
+
+    /* Custom Filter Tabs */
+    .tabs-container {
+      display: flex;
+      background: var(--card-bg);
+      padding: 4px;
+      border-radius: 12px;
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      position: relative;
+      z-index: 2;
+      transition: color 0.2s ease;
+      border-radius: 8px;
+    }
+
+    .tab.active {
+      color: var(--text-primary);
+      background: var(--card-active);
+    }
+
+    /* List Container */
+    .list-container {
+      flex: 1;
+      padding: 0 16px;
+    }
+
+    /* Transaction Card */
+    .tx-card {
+      display: flex;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--divider);
+      transition: background 0.1s;
+    }
+    
+    .tx-card:last-child { border-bottom: none; }
+    .tx-card:active { opacity: 0.7; }
+
+    /* Icon Box */
+    .tx-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    .tx-icon-box svg { width: 22px; height: 22px; }
+
+    /* Info Area */
+    .tx-info { flex: 1; overflow: hidden; }
+    .tx-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-subtitle { font-size: 13px; color: var(--text-secondary); }
+
+    /* Amount Area */
+    .tx-right { text-align: right; flex-shrink: 0; margin-left: 8px; }
+    .tx-amount { font-size: 16px; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .tx-status { font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+
+    /* Status Styles */
+    .status-pending .tx-icon-box { background: var(--yellow-bg); color: var(--yellow); }
+    .status-pending .tx-amount { color: var(--yellow); }
+    
+    .status-confirmed .tx-icon-box { background: var(--green-bg); color: var(--green); }
+    .status-confirmed .tx-amount { color: var(--green); }
+
+    .status-rejected .tx-icon-box { background: var(--red-bg); color: var(--red); }
+    .status-rejected .tx-amount { color: var(--text-secondary); text-decoration: line-through; }
+    
+    /* Utilities */
+    .loader { text-align: center; padding: 40px; color: var(--text-secondary); }
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--text-secondary);
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .empty-icon { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.2; }
+    .err-msg { color: var(--red); text-align: center; padding: 20px; font-size: 14px; background: rgba(255, 69, 58, 0.1); border-radius: 12px; margin: 16px; }
+
+    /* SVG Definitions */
+    .svg-def { display: none; }
   </style>
 </head>
 <body>
-  <div class="page">
-    <h1>История чеков</h1>
-    <div id="root">
-      <div class="load" id="load">Загрузка...</div>
-      <div id="content" style="display:none;"></div>
-      <div class="err" id="err" style="display:none;"></div>
+
+  <svg class="svg-def">
+    <defs>
+      <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+      <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+      <symbol id="icon-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5M19 11C20.1046 11 21 11.8954 21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V13C3 11.8954 3.89543 11 5 11M19 11V9C19 7.89543 18.1046 7 17 7M5 11V9C5 7.89543 5.89543 7 7 7M7 7V5C7 3.89543 7.89543 3 9 3H15C16.1046 3 17 3.89543 17 5V7M7 7H17"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="header">
+    <h1>История</h1>
+    
+    <div class="tabs-container" id="tabs">
+      <div class="tab active" data-filter="all">Все</div>
+      <div class="tab" data-filter="pending">Ждут</div>
+      <div class="tab" data-filter="confirmed">Успех</div>
+      <div class="tab" data-filter="rejected">Отмена</div>
     </div>
   </div>
+
+  <div class="list-container" id="list">
+    <div class="loader">
+      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="animation: spin 1s linear infinite; fill: var(--text-secondary);"><style>@keyframes spin { 100% { transform: rotate(360deg); } }</style><path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/><path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"/></svg>
+    </div>
+  </div>
+
+  <div id="error-box" class="err-msg" style="display:none;"></div>
+
   <script>
-(function() {
-  // В открытом виде: Supabase для запроса чеков по telegram_id
-  var SUPABASE_URL = 'https://wzpywfedbowlosmvecos.supabase.co';
-  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6cHl3ZmVkYm93bG9zbXZlY29zIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjM1MDIzOSwiZXhwIjoyMDgxOTI2MjM5fQ.mzhh4g_DUpwQUtE2_-tGitSCW9ry2WRHYg-f-MSPt1Q';
+    (function() {
+      // Configuration
+      const CONF = {
+        supabaseUrl: 'https://wzpywfedbowlosmvecos.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6cHl3ZmVkYm93bG9zbXZlY29zIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjM1MDIzOSwiZXhwIjoyMDgxOTI2MjM5fQ.mzhh4g_DUpwQUtE2_-tGitSCW9ry2WRHYg-f-MSPt1Q'
+      };
 
-  function getUserId() {
-    try {
-      var twa = window.Telegram && window.Telegram.WebApp;
-      var user = twa && twa.initDataUnsafe && twa.initDataUnsafe.user;
-      if (user && user.id) return user.id;
-    } catch (e) {}
-    var params = new URLSearchParams(window.location.search);
-    return params.get('tg_id') || params.get('user_id') || params.get('user') || null;
-  }
+      // State
+      let allChecks = [];
+      let currentFilter = 'all';
 
-  function formatDate(s) {
-    if (!s) return '—';
-    var d = new Date(s);
-    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  }
+      // --- Helpers ---
+      
+      function getUserId() {
+        // Priority: WebApp User -> URL Params
+        try {
+          const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
+          if (user?.id) return user.id;
+        } catch (e) {}
+        const params = new URLSearchParams(window.location.search);
+        return params.get('tg_id') || params.get('user_id') || params.get('user');
+      }
 
-  function statusLabel(status) {
-    if (status === 'pending') return 'Ожидает проверку';
-    if (status === 'awaiting_amount') return 'Ожидает сумму';
-    if (status === 'confirmed') return 'Подтверждён';
-    if (status === 'rejected') return 'Отклонён';
-    return status || '—';
-  }
+      function formatDate(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        
+        const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        if (isToday) return `Сегодня, ${time}`;
+        
+        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) + `, ${time}`;
+      }
 
-  function statusClass(status) {
-    if (status === 'confirmed') return 'confirmed';
-    if (status === 'rejected') return 'rejected';
-    return status === 'awaiting_amount' ? 'awaiting' : 'pending';
-  }
+      // --- UI Rendering ---
 
-  function render(checks) {
-    var pending = checks.filter(function(c) { return c.status === 'pending' || c.status === 'awaiting_amount'; });
-    var confirmed = checks.filter(function(c) { return c.status === 'confirmed'; });
-    var rejected = checks.filter(function(c) { return c.status === 'rejected'; });
+      function getStatusMeta(status) {
+        // Returns class name, icon ID, and readable text
+        switch(status) {
+          case 'confirmed':
+            return { css: 'status-confirmed', icon: '#icon-check', label: 'Зачислен' };
+          case 'rejected':
+            return { css: 'status-rejected', icon: '#icon-x', label: 'Отклонён' };
+          case 'pending':
+          case 'awaiting_amount':
+          default:
+            return { css: 'status-pending', icon: '#icon-clock', label: 'Проверка' };
+        }
+      }
 
-    var html = '';
+      function renderList() {
+        const container = document.getElementById('list');
+        
+        // Filter logic
+        const filtered = allChecks.filter(c => {
+          if (currentFilter === 'all') return true;
+          if (currentFilter === 'confirmed') return c.status === 'confirmed';
+          if (currentFilter === 'rejected') return c.status === 'rejected';
+          if (currentFilter === 'pending') return c.status === 'pending' || c.status === 'awaiting_amount';
+          return true;
+        });
 
-    html += '<div class="section"><div class="section-title">Ожидают проверку</div>';
-    if (pending.length === 0) html += '<div class="empty">Нет чеков</div>';
-    else pending.forEach(function(c) {
-      html += '<div class="card"><div class="card-row"><span class="card-id">Чек #' + c.id + '</span><span class="card-status ' + statusClass(c.status) + '">' + statusLabel(c.status) + '</span></div><div class="card-date">' + formatDate(c.created_at) + '</div></div>';
-    });
-    html += '</div>';
+        if (filtered.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <svg class="empty-icon"><use href="#icon-empty"></use></svg>
+              <div>Здесь пока пусто</div>
+            </div>`;
+          return;
+        }
 
-    html += '<div class="section"><div class="section-title">Подтверждено</div>';
-    if (confirmed.length === 0) html += '<div class="empty">Нет чеков</div>';
-    else confirmed.forEach(function(c) {
-      var amount = c.amount_usd != null ? '$' + Number(c.amount_usd) : '';
-      html += '<div class="card"><div class="card-row"><span class="card-id">Чек #' + c.id + '</span><span class="card-amount">' + amount + '</span></div><div class="card-row"><span class="card-date">' + formatDate(c.confirmed_at || c.created_at) + '</span><span class="card-status confirmed">Подтверждён</span></div></div>';
-    });
-    html += '</div>';
+        let html = '';
+        filtered.forEach(item => {
+          const meta = getStatusMeta(item.status);
+          const amountDisplay = item.amount_usd ? `$${Number(item.amount_usd).toLocaleString('en-US')}` : '---';
+          
+          html += `
+            <div class="tx-card ${meta.css}">
+              <div class="tx-icon-box">
+                <svg><use href="${meta.icon}"></use></svg>
+              </div>
+              <div class="tx-info">
+                <div class="tx-title">Чек #${item.id}</div>
+                <div class="tx-subtitle">${formatDate(item.created_at)}</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount">${amountDisplay}</div>
+                <div class="tx-subtitle">${meta.label}</div>
+              </div>
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      }
 
-    html += '<div class="section"><div class="section-title">Отклонено</div>';
-    if (rejected.length === 0) html += '<div class="empty">Нет чеков</div>';
-    else rejected.forEach(function(c) {
-      html += '<div class="card"><div class="card-row"><span class="card-id">Чек #' + c.id + '</span><span class="card-status rejected">Отклонён</span></div><div class="card-date">' + formatDate(c.created_at) + '</div></div>';
-    });
-    html += '</div>';
+      function setupTabs() {
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(t => {
+          t.addEventListener('click', () => {
+            // Remove active class from all
+            tabs.forEach(tb => tb.classList.remove('active'));
+            // Add to clicked
+            t.classList.add('active');
+            // Update filter
+            currentFilter = t.getAttribute('data-filter');
+            renderList();
+            
+            // Haptic Feedback for WebApp
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+              window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+          });
+        });
+      }
 
-    return html;
-  }
+      function showError(msg) {
+        const box = document.getElementById('error-box');
+        document.getElementById('list').style.display = 'none';
+        box.textContent = msg;
+        box.style.display = 'block';
+      }
 
-  function showErr(msg) {
-    document.getElementById('load').style.display = 'none';
-    document.getElementById('content').style.display = 'none';
-    var el = document.getElementById('err');
-    el.textContent = msg;
-    el.style.display = 'block';
-  }
+      // --- Main Logic ---
 
-  function showContent(html) {
-    document.getElementById('load').style.display = 'none';
-    document.getElementById('err').style.display = 'none';
-    var el = document.getElementById('content');
-    el.innerHTML = html;
-    el.style.display = 'block';
-  }
+      async function init() {
+        // TWA Setup
+        const twa = window.Telegram?.WebApp;
+        if (twa) {
+          twa.ready();
+          twa.expand();
+          twa.enableClosingConfirmation();
+          // Force dark styling to match app
+          twa.setHeaderColor('#000000');
+          twa.setBackgroundColor('#000000');
+        }
 
-  var userId = getUserId();
-  if (!userId) {
-    showErr('Не передан ID пользователя. Откройте страницу через бота.');
-    throw new Error('no user id');
-  }
+        const userId = getUserId();
+        if (!userId) {
+          showError('Ошибка доступа: ID пользователя не найден. Запустите через бота.');
+          return;
+        }
 
-  var url = SUPABASE_URL + '/rest/v1/checks?sender_telegram_id=eq.' + encodeURIComponent(userId) + '&select=id,status,amount_usd,created_at,confirmed_at&order=created_at.desc';
-  fetch(url, {
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json'
-    }
-  })
-  .then(function(r) {
-    if (!r.ok) throw new Error('Ошибка загрузки');
-    return r.json();
-  })
-  .then(function(data) {
-    showContent(render(Array.isArray(data) ? data : []));
-  })
-  .catch(function(e) {
-    showErr(e.message || 'Не удалось загрузить историю.');
-  });
+        // Setup Tabs
+        setupTabs();
 
-  if (window.Telegram && window.Telegram.WebApp) {
-    var twa = window.Telegram.WebApp;
-    twa.ready();
-    twa.expand();
-    if (twa.requestFullscreen && typeof twa.requestFullscreen === 'function') try { twa.requestFullscreen(); } catch (_) {}
-    twa.setHeaderColor && twa.setHeaderColor('#18222d');
-    twa.setBackgroundColor && twa.setBackgroundColor('#18222d');
-  }
-})();
+        // Fetch Data
+        const query = `${CONF.supabaseUrl}/rest/v1/checks?sender_telegram_id=eq.${encodeURIComponent(userId)}&select=id,status,amount_usd,created_at,confirmed_at&order=created_at.desc`;
+        
+        try {
+          const res = await fetch(query, {
+            headers: {
+              'apikey': CONF.supabaseKey,
+              'Authorization': `Bearer ${CONF.supabaseKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!res.ok) throw new Error('Network response was not ok');
+          
+          const data = await res.json();
+          allChecks = Array.isArray(data) ? data : [];
+          
+          renderList();
+
+        } catch (e) {
+          console.error(e);
+          showError('Не удалось загрузить историю транзакций.');
+        }
+      }
+
+      // Start
+      init();
+
+    })();
   </script>
 </body>
 </html>
